@@ -1,0 +1,6 @@
+unstructured-client>=0.42.12
+streamlit>=1.40.0
+weasyprint>=68.1
+python-dotenv>=1.2.2
+Jinja2>=3.1.6
+google-genai>=1.69.0

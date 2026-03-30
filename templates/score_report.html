@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4; margin: 2cm; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11pt; color: #1a1a1a; line-height: 1.5; }
+  h1 { font-size: 18pt; color: #2c3e50; border-bottom: 2px solid #27ae60; padding-bottom: 6px; margin-top: 0; }
+  h2 { font-size: 14pt; color: #2c3e50; margin-top: 24px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+  h3 { font-size: 12pt; color: #34495e; margin-top: 16px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 10pt; }
+  th { background: #2c3e50; color: white; padding: 8px; text-align: left; }
+  td { padding: 6px 8px; border-bottom: 1px solid #ddd; }
+  tr:nth-child(even) { background: #f8f9fa; }
+  .highlight { background: #eafaf1; font-weight: bold; }
+  .iq-box { background: #2c3e50; color: white; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0; }
+  .iq-score { font-size: 36pt; font-weight: bold; }
+  .iq-label { font-size: 10pt; opacity: 0.8; }
+  .ci { font-size: 11pt; margin-top: 4px; }
+  .field { margin: 4px 0; }
+  .field-label { font-weight: bold; color: #555; }
+  .meta { font-size: 9pt; color: #7f8c8d; margin-bottom: 24px; }
+  .badge-strength { color: #27ae60; font-weight: bold; }
+  .badge-weakness { color: #e74c3c; font-weight: bold; }
+  .badge-sig { color: #e67e22; font-weight: bold; }
+  .footer { text-align: center; font-size: 8pt; color: #bdc3c7; margin-top: 40px; border-top: 1px solid #eee; padding-top: 10px; }
+</style>
+</head>
+<body>
+  <h1>Structured Score Report</h1>
+  <div class="meta">Generated from: {{ source_file }} | Extracted via AI (LLM)</div>
+
+  {% if show_examinee and data.examinee_information %}
+  <h2>Examinee Information</h2>
+  {% for key, val in data.examinee_information.items() %}
+  {% if val is not none %}
+  <div class="field"><span class="field-label">{{ key | replace('_', ' ') | title }}:</span> {{ val }}</div>
+  {% endif %}
+  {% endfor %}
+  {% endif %}
+
+  {% if show_administration and data.test_administration %}
+  <h2>Test Administration</h2>
+  {% for key, val in data.test_administration.items() %}
+  {% if val is not none %}
+  <div class="field"><span class="field-label">{{ key | replace('_', ' ') | title }}:</span> {{ val }}</div>
+  {% endif %}
+  {% endfor %}
+  {% endif %}
+
+  {% if show_fsiq and data.full_scale_iq %}
+  <h2>Full Scale IQ</h2>
+  <div class="iq-box">
+    <div class="iq-label">FSIQ</div>
+    <div class="iq-score">{{ data.full_scale_iq.score or '—' }}</div>
+    {% if data.full_scale_iq.percentile_rank is not none %}
+    <div>Percentile: {{ data.full_scale_iq.percentile_rank }}</div>
+    {% endif %}
+    {% if data.full_scale_iq.confidence_interval_lower and data.full_scale_iq.confidence_interval_upper %}
+    <div class="ci">95% CI: {{ data.full_scale_iq.confidence_interval_lower }}–{{ data.full_scale_iq.confidence_interval_upper }}</div>
+    {% endif %}
+    {% if data.full_scale_iq.qualitative_description %}
+    <div>{{ data.full_scale_iq.qualitative_description }}</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if show_subtests and data.subtest_scores %}
+  <h2>Subtest Scores</h2>
+  <table>
+    <tr>
+      <th>Domain</th><th>Subtest</th><th>Abbr.</th><th>Raw</th>
+      <th>Scaled</th><th>%ile</th><th>Ref. Group</th><th>SEM</th>
+    </tr>
+    {% for s in data.subtest_scores %}
+    <tr>
+      <td>{{ s.domain or '' }}</td>
+      <td>{{ s.subtest_name or '' }}</td>
+      <td>{{ s.abbreviation or '' }}</td>
+      <td>{{ s.total_raw_score if s.total_raw_score is not none else '' }}</td>
+      <td>{{ s.scaled_score if s.scaled_score is not none else '' }}</td>
+      <td>{{ s.percentile_rank if s.percentile_rank is not none else '' }}</td>
+      <td>{{ s.reference_group_scaled_score if s.reference_group_scaled_score is not none else '' }}</td>
+      <td>{{ s.standard_error_of_measurement if s.standard_error_of_measurement is not none else '' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  {% if show_composites and data.composite_scores %}
+  <h2>Composite / Index Scores</h2>
+  <table>
+    <tr>
+      <th>Composite</th><th>Abbr.</th><th>Sum SS</th><th>Score</th>
+      <th>%ile</th><th>95% CI</th><th>Description</th>
+    </tr>
+    {% for c in data.composite_scores %}
+    <tr>
+      <td>{{ c.composite_name or '' }}</td>
+      <td>{{ c.abbreviation or '' }}</td>
+      <td>{{ c.sum_of_scaled_scores if c.sum_of_scaled_scores is not none else '' }}</td>
+      <td class="highlight">{{ c.composite_score if c.composite_score is not none else '' }}</td>
+      <td>{{ c.percentile_rank if c.percentile_rank is not none else '' }}</td>
+      <td>{{ c.confidence_interval_lower or '' }}–{{ c.confidence_interval_upper or '' }}</td>
+      <td>{{ c.qualitative_description or '' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  {% if show_strengths and data.index_strengths_weaknesses %}
+  <h2>Index Strengths & Weaknesses</h2>
+  <table>
+    <tr>
+      <th>Index</th><th>Score</th><th>Comparison</th><th>Diff.</th>
+      <th>Critical</th><th>S/W</th><th>Base Rate</th>
+    </tr>
+    {% for sw in data.index_strengths_weaknesses %}
+    <tr>
+      <td>{{ sw.index_abbreviation or '' }}</td>
+      <td>{{ sw.index_score if sw.index_score is not none else '' }}</td>
+      <td>{{ sw.comparison_score if sw.comparison_score is not none else '' }}</td>
+      <td>{{ sw.difference if sw.difference is not none else '' }}</td>
+      <td>{{ sw.critical_value if sw.critical_value is not none else '' }}</td>
+      <td>
+        {% if sw.is_strength %}<span class="badge-strength">S</span>{% endif %}
+        {% if sw.is_weakness %}<span class="badge-weakness">W</span>{% endif %}
+        {% if not sw.is_strength and not sw.is_weakness %}—{% endif %}
+      </td>
+      <td>{{ sw.base_rate or '' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  {% if show_pairwise and data.pairwise_comparisons %}
+  <h2>Pairwise Comparisons</h2>
+  <table>
+    <tr>
+      <th>Type</th><th>Score 1</th><th>Val</th><th>Score 2</th><th>Val</th>
+      <th>Diff.</th><th>Critical</th><th>Sig?</th><th>Base Rate</th>
+    </tr>
+    {% for p in data.pairwise_comparisons %}
+    <tr>
+      <td>{{ p.comparison_type or '' }}</td>
+      <td>{{ p.score_1_name or '' }}</td>
+      <td>{{ p.score_1_value if p.score_1_value is not none else '' }}</td>
+      <td>{{ p.score_2_name or '' }}</td>
+      <td>{{ p.score_2_value if p.score_2_value is not none else '' }}</td>
+      <td>{{ p.difference if p.difference is not none else '' }}</td>
+      <td>{{ p.critical_value if p.critical_value is not none else '' }}</td>
+      <td>{% if p.is_significant %}<span class="badge-sig">Yes</span>{% else %}No{% endif %}</td>
+      <td>{{ p.base_rate or '' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  {% if show_process and data.process_scores %}
+  <h2>Process Scores</h2>
+  <table>
+    <tr><th>Name</th><th>Abbr.</th><th>Raw</th><th>Scaled</th><th>Base Rate</th></tr>
+    {% for ps in data.process_scores %}
+    <tr>
+      <td>{{ ps.process_score_name or '' }}</td>
+      <td>{{ ps.abbreviation or '' }}</td>
+      <td>{{ ps.raw_score if ps.raw_score is not none else '' }}</td>
+      <td>{{ ps.scaled_score if ps.scaled_score is not none else '' }}</td>
+      <td>{{ ps.base_rate or '' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  <div class="footer">
+    Assessment Report — Generated by Mental Health Diagnostic Platform (Technical Spike)
+  </div>
+</body>
+</html>

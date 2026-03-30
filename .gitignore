@@ -1,0 +1,13 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+output/*.json
+output/*.pdf
+input/
+*.xlsx
+*.doc
+*.docx
+Wais 5 Sample Score Report.pdf
+.DS_Store
