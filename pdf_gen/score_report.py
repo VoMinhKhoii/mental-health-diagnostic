@@ -33,11 +33,10 @@ def generate_score_pdf(
             # Try first item
             data = data[0] if data else {}
 
-    env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
+    env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), autoescape=True)
     template = env.get_template("score_report.html")
 
     html_content = template.render(
-        source_file=source_filename,
         data=data,
         show_examinee=show_sections.get("examinee_information", True),
         show_administration=show_sections.get("test_administration", True),

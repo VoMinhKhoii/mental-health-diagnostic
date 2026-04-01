@@ -3,6 +3,9 @@
 Two-path pipeline:
   Path 1 (Sections): Upload → Partition → Select sections → PDF
   Path 2 (Structured): Upload → Partition + Extract → Select fields → PDF
+
+DEV mode: set DEV_MODE=1 env var or add ?dev=true query param to show
+debug controls (Job 1 button, Sections tab).
 """
 
 import json
@@ -11,6 +14,18 @@ import tempfile
 import streamlit as st
 
 st.set_page_config(page_title="Assessment Report Processor", layout="wide")
+
+# ── DEV mode detection ────────────────────────────────────────────────────
+def _is_dev_mode() -> bool:
+    if os.environ.get("DEV_MODE", "").strip().lower() in ("1", "true", "yes"):
+        return True
+    try:
+        return st.query_params.get("dev", "").lower() in ("1", "true")
+    except Exception:
+        return False
+
+DEV_MODE = _is_dev_mode()
+
 
 # ── Lazy imports (avoid loading heavy modules before needed) ──────────────
 def _import_partition():
@@ -32,7 +47,10 @@ def _import_score_pdf():
 
 # ── Header ────────────────────────────────────────────────────────────────
 st.title("🧠 Assessment Report Processor")
-st.caption("Technical Spike — Unstructured Platform API + PDF Generation")
+if DEV_MODE:
+    st.caption("🛠 DEV MODE — Technical Spike — Unstructured Platform API + PDF Generation")
+else:
+    st.caption("Upload a score report to generate a structured assessment PDF.")
 
 # ── File Upload ───────────────────────────────────────────────────────────
 uploaded = st.file_uploader(
@@ -52,16 +70,21 @@ with open(tmp_path, "wb") as f:
 
 st.success(f"Uploaded: **{uploaded.name}** ({len(uploaded.getvalue()) / 1024:.1f} KB)")
 
-# ── Processing ────────────────────────────────────────────────────────────
-col1, col2 = st.columns(2)
+# ── Processing buttons ────────────────────────────────────────────────────
+run_partition = False
+run_extract = False
 
-with col1:
-    run_partition = st.button("🔍 Run Section Parser (Job 1)", use_container_width=True)
-with col2:
-    run_extract = st.button("📊 Run Score Extractor (Job 2)", use_container_width=True)
+if DEV_MODE:
+    col1, col2 = st.columns(2)
+    with col1:
+        run_partition = st.button("🔍 Run Section Parser (Job 1)", use_container_width=True)
+    with col2:
+        run_extract = st.button("📊 Process Report", use_container_width=True)
+else:
+    run_extract = st.button("📊 Process Report", type="primary", use_container_width=True)
 
-# ── Job 1: Partition ──────────────────────────────────────────────────────
-if run_partition:
+# ── Job 1: Partition (DEV only standalone) ────────────────────────────────
+if run_partition and DEV_MODE:
     with st.spinner("Running partition job... (this may take 30-120s)"):
         status_area = st.empty()
         def partition_progress(msg):
@@ -77,10 +100,11 @@ if run_partition:
         except Exception as e:
             st.error(f"❌ Partition failed: {e}")
 
+# ── Job 2: End-to-end (Partition + Extract) ───────────────────────────────
 if run_extract:
-    # Extraction requires partition output first
+    # Step 1: Partition (if not already done)
     if "partition_elements" not in st.session_state:
-        with st.spinner("Step 1/2: Running partition job first..."):
+        with st.spinner("Step 1/2: Parsing document structure..."):
             status_area = st.empty()
             def partition_first_progress(msg):
                 status_area.text(f"[Partition] {msg}")
@@ -94,7 +118,8 @@ if run_extract:
                 st.error(f"❌ Partition failed: {e}")
                 st.stop()
 
-    with st.spinner("Running extraction via Gemini... (this may take 15-60s)"):
+    # Step 2: Extract
+    with st.spinner("Step 2/2: Extracting structured scores via AI..."):
         status_area = st.empty()
         def extract_progress(msg):
             status_area.text(msg)
@@ -108,7 +133,7 @@ if run_extract:
             st.session_state["extract_result"] = result
             st.session_state["extract_file"] = uploaded.name
             status_area.empty()
-            st.success("✅ Extraction complete (via Gemini)")
+            st.success("✅ Processing complete — structured data extracted")
         except Exception as e:
             st.error(f"❌ Extraction failed: {e}")
 
@@ -121,18 +146,21 @@ if not has_partition and not has_extract:
 
 tabs = []
 tab_labels = []
-if has_partition:
+if has_partition and DEV_MODE:
     tab_labels.append("📄 Sections (Path 1)")
 if has_extract:
     tab_labels.append("📊 Structured Data (Path 2)")
-if has_partition or has_extract:
+if (has_partition or has_extract) and DEV_MODE:
     tab_labels.append("🗂 Raw JSON")
+
+if not tab_labels:
+    st.stop()
 
 tabs = st.tabs(tab_labels)
 tab_idx = 0
 
-# ── Tab: Sections ─────────────────────────────────────────────────────────
-if has_partition:
+# ── Tab: Sections (DEV only) ─────────────────────────────────────────────
+if has_partition and DEV_MODE:
     with tabs[tab_idx]:
         elements = st.session_state["partition_elements"]
         st.subheader(f"Document Sections ({len(elements)} elements)")
@@ -259,26 +287,27 @@ if has_extract:
             )
     tab_idx += 1
 
-# ── Tab: Raw JSON ─────────────────────────────────────────────────────────
-with tabs[tab_idx]:
-    st.subheader("Raw API Responses")
+# ── Tab: Raw JSON (DEV only) ─────────────────────────────────────────────
+if DEV_MODE and (has_partition or has_extract):
+    with tabs[tab_idx]:
+        st.subheader("Raw API Responses")
 
-    if has_partition:
-        with st.expander("Partition Elements (Job 1)", expanded=False):
-            st.json(st.session_state["partition_elements"])
+        if has_partition:
+            with st.expander("Partition Elements (Job 1)", expanded=False):
+                st.json(st.session_state["partition_elements"])
 
-        # Save raw output
-        raw_partition_path = os.path.join("output", "partition_elements.json")
-        os.makedirs("output", exist_ok=True)
-        with open(raw_partition_path, "w") as f:
-            json.dump(st.session_state["partition_elements"], f, indent=2, default=str)
-        st.caption(f"Saved to {raw_partition_path}")
+            # Save raw output
+            raw_partition_path = os.path.join("output", "partition_elements.json")
+            os.makedirs("output", exist_ok=True)
+            with open(raw_partition_path, "w") as f:
+                json.dump(st.session_state["partition_elements"], f, indent=2, default=str)
+            st.caption(f"Saved to {raw_partition_path}")
 
-    if has_extract:
-        with st.expander("Extraction Result (Job 2)", expanded=False):
-            st.json(st.session_state["extract_result"])
+        if has_extract:
+            with st.expander("Extraction Result (Job 2)", expanded=False):
+                st.json(st.session_state["extract_result"])
 
-        raw_extract_path = os.path.join("output", "extraction_result.json")
-        with open(raw_extract_path, "w") as f:
-            json.dump(st.session_state["extract_result"], f, indent=2, default=str)
-        st.caption(f"Saved to {raw_extract_path}")
+            raw_extract_path = os.path.join("output", "extraction_result.json")
+            with open(raw_extract_path, "w") as f:
+                json.dump(st.session_state["extract_result"], f, indent=2, default=str)
+            st.caption(f"Saved to {raw_extract_path}")

@@ -52,11 +52,11 @@
   <h2>Full Scale IQ</h2>
   <div class="iq-box">
     <div class="iq-label">FSIQ</div>
-    <div class="iq-score">{{ data.full_scale_iq.score or '—' }}</div>
+    <div class="iq-score">{{ data.full_scale_iq.score if data.full_scale_iq.score is not none else '—' }}</div>
     {% if data.full_scale_iq.percentile_rank is not none %}
     <div>Percentile: {{ data.full_scale_iq.percentile_rank }}</div>
     {% endif %}
-    {% if data.full_scale_iq.confidence_interval_lower and data.full_scale_iq.confidence_interval_upper %}
+    {% if data.full_scale_iq.confidence_interval_lower is not none and data.full_scale_iq.confidence_interval_upper is not none %}
     <div class="ci">95% CI: {{ data.full_scale_iq.confidence_interval_lower }}–{{ data.full_scale_iq.confidence_interval_upper }}</div>
     {% endif %}
     {% if data.full_scale_iq.qualitative_description %}
@@ -101,7 +101,7 @@
       <td>{{ c.sum_of_scaled_scores if c.sum_of_scaled_scores is not none else '' }}</td>
       <td class="highlight">{{ c.composite_score if c.composite_score is not none else '' }}</td>
       <td>{{ c.percentile_rank if c.percentile_rank is not none else '' }}</td>
-      <td>{{ c.confidence_interval_lower or '' }}–{{ c.confidence_interval_upper or '' }}</td>
+      <td>{% if c.confidence_interval_lower is not none and c.confidence_interval_upper is not none %}{{ c.confidence_interval_lower }}–{{ c.confidence_interval_upper }}{% endif %}</td>
       <td>{{ c.qualitative_description or '' }}</td>
     </tr>
     {% endfor %}
@@ -149,7 +149,7 @@
       <td>{{ p.score_2_value if p.score_2_value is not none else '' }}</td>
       <td>{{ p.difference if p.difference is not none else '' }}</td>
       <td>{{ p.critical_value if p.critical_value is not none else '' }}</td>
-      <td>{% if p.is_significant %}<span class="badge-sig">Yes</span>{% else %}No{% endif %}</td>
+      <td>{% if p.is_significant is none or p.is_significant is undefined %}N/A{% elif p.is_significant %}<span class="badge-sig">Yes</span>{% else %}No{% endif %}</td>
       <td>{{ p.base_rate or '' }}</td>
     </tr>
     {% endfor %}
